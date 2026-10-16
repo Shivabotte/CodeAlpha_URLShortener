@@ -1,0 +1,201 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeAlpha URL Shortener</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <h1>URL Shortener</h1>
+        <p>Make your long links short and easy to share!</p>
+
+        <form id="urlForm">
+            <input
+                type="url"
+                id="urlInput"
+                placeholder="Enter your long URL"
+                required
+            >
+            <button type="submit">Shorten URL</button>
+        </form>
+
+        <div id="result" hidden>
+            <p>Your shortened URL:</p>
+            <a id="shortLink" href="#"
+               target="_blank" rel="noopener noreferrer"></a>
+            <button type="button" id="copyBtn">Copy Link</button>
+        </div>
+
+        <p id="message" role="status"></p>
+
+        <h2>URL History</h2>
+        <div id="history">
+            <p>Loading URL history...</p>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById("urlForm");
+        const urlInput = document.getElementById("urlInput");
+        const result = document.getElementById("result");
+        const shortLink = document.getElementById("shortLink");
+        const message = document.getElementById("message");
+        const copyBtn = document.getElementById("copyBtn");
+        const historyContainer = document.getElementById("history");
+
+        // Create a short URL
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            result.hidden = true;
+            message.style.color = "#dc2626";
+            message.textContent = "Creating your short URL...";
+
+            try {
+                const response = await fetch("/shorten", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        url: urlInput.value.trim()
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Something went wrong");
+                }
+
+                shortLink.href = data.short_url;
+                shortLink.textContent = data.short_url;
+                result.hidden = false;
+
+                message.textContent = "URL shortened successfully!";
+                message.style.color = "#16a34a";
+
+                await loadHistory();
+
+            } catch (error) {
+                message.textContent = error.message;
+            }
+        });
+
+        // Copy the newly generated URL
+        copyBtn.addEventListener("click", async function () {
+            try {
+                await navigator.clipboard.writeText(shortLink.href);
+                message.textContent = "Short URL copied!";
+                message.style.color = "#16a34a";
+            } catch (error) {
+                message.textContent =
+                    "Copy failed. Please copy the link manually.";
+                message.style.color = "#dc2626";
+            }
+        });
+
+        // Load saved URL history
+        async function loadHistory() {
+            try {
+                const response = await fetch("/history");
+
+                if (!response.ok) {
+                    throw new Error("Could not load URL history");
+                }
+
+                const urls = await response.json();
+                historyContainer.replaceChildren();
+
+                if (urls.length === 0) {
+                    historyContainer.textContent =
+                        "No URLs shortened yet.";
+                    return;
+                }
+
+                urls.forEach(function (url) {
+                    const item = document.createElement("div");
+                    item.className = "history-item";
+
+                    const original = document.createElement("p");
+                    original.textContent =
+                        "Original: " + url.original_url;
+
+                    const link = document.createElement("a");
+                    link.href = url.short_url;
+                    link.textContent = url.short_url;
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+
+                    const copy = document.createElement("button");
+                    copy.type = "button";
+                    copy.textContent = "Copy";
+                    copy.className = "history-copy";
+
+                    copy.addEventListener("click", async function () {
+                        try {
+                            await navigator.clipboard.writeText(
+                                url.short_url
+                            );
+                            copy.textContent = "Copied!";
+                        } catch (error) {
+                            copy.textContent = "Copy failed";
+                        }
+                    });
+
+                    // item.append(original, link, copy);
+                    
+const deleteBtn = document.createElement("button");
+deleteBtn.type = "button";
+deleteBtn.textContent = "Delete";
+deleteBtn.className = "delete-btn";
+
+deleteBtn.addEventListener("click", async function () {
+    const confirmed = confirm(
+        "Are you sure you want to delete this short URL?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch(
+            "/delete/" + encodeURIComponent(url.short_code),
+            { method: "DELETE" }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Could not delete URL");
+        }
+
+        await loadHistory();
+        message.style.color = "#16a34a";
+        message.textContent = "URL deleted successfully!";
+    } catch (error) {
+        message.style.color = "#dc2626";
+        message.textContent = error.message;
+    }
+});
+
+item.append(original, link, copy, deleteBtn);
+
+                    historyContainer.appendChild(item);
+                });
+
+            } catch (error) {
+                historyContainer.textContent = error.message;
+            }
+        }
+
+        // Load history when the page opens
+        loadHistory();
+    </script>
+</body>
+</html>
